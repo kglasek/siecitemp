@@ -1,0 +1,62 @@
+#!/bin/bash
+echo "podaj imie"
+read imie
+echo "podaj nazwisko"
+read nazwisko
+echo "wprowadzone imie i nazwisko:" $imie $nazwisko
+echo "podaj haslo"
+read -s haslo
+limie=$(echo $imie | tr [:upper:] [:lower:])
+lnazwisko=$(echo $nazwisko | tr [:upper:] [:lower:])
+litera=$(echo $limie | cut -c 1)
+username=$litera$lnazwisko
+er=1
+re=1
+inkrement=0
+while [ $er = 1 ]; do
+	re=1
+	for user in $(cat /etc/passwd); do
+		user=$(echo "$user" | sed 's/:.*//');
+		if [ $username = $user ]
+		then 
+			#inkrement=$[$inkrement+1]
+			inkrement=$((inkrement+1))
+			username=$(echo $username$inkrement)
+			re=0
+		fi
+	done
+	if [ $re = 1 ]
+	then
+		er=0
+	fi
+done
+
+useradd -mp  $(openssl passwd -1 $haslo) -s /bin/bash $username -g users
+passwd -e $username
+cd /home/$username
+mkdir /home/$username/public_html
+cd /home/$username/public_html
+mkdir private_html
+cd /home/$username/public_html/private_html
+touch /home/$username/public_html/private_html/.htaccess
+echo "AuthType Basic">>/home/$username/public_html/private_html/.htaccess
+echo "AuthName 'Password Protected Area'">>/home/$username/public_html/private_html/.htaccess
+echo "AuthUserFile /home/$username/public_html/private_html/.htpasswd">>/home/$username/public_html/private_html/.htaccess
+echo "Require valid-user">>/home/$username/public_html/private_html/.htaccess
+cd /home/$username/public_html/private_html
+htpasswd -cdb /home/$username/.htpasswd $username $haslo
+echo $username | sudo tee -a /etc/vsftpd.userlist
+smbpasswd -a $username
+
+echo "dodano nowego uzytkownika"
+echo "twoj login:" $username
+echo "alias pokapasswd='cat /etc/passwd'" >> /home/$username/.bashrc
+echo "alias pokaproc='cat /proc/passwd'" >> /home/$username/.bashrc
+
+chmod a-w /home/$username/public_html
+chown -R $username:user /home/$username/public_html
+chmod -R 0775 /home/$username/public_html
+
+chmod a-w /home/$username/public_html/private_html
+chown -R $username:user  /home/$username/public_html/private_html
+chmod -R 0775 /home/$username/public_html/private_html
